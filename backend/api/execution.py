@@ -9,22 +9,20 @@ from backend.database import get_db
 from backend.models.execution import ExecutionModel
 from backend.models.debate import DebateModel
 from execution.executor import CodeExecutor
+from execution.code_generator import CodeGenerator
+from execution.sandbox import DockerSandbox, FallbackSandbox
 
 router = APIRouter()
 
 
-class ExecutionResponse:
-    """Schema for execution response."""
-    def __init__(self, id, debate_id, status, code_generated,
-                 execution_result, error_message, created_at, completed_at):
-        self.id = id
-        self.debate_id = debate_id
-        self.status = status
-        self.code_generated = code_generated
-        self.execution_result = execution_result
-        self.error_message = error_message
-        self.created_at = created_at
-        self.completed_at = completed_at
+def _get_executor(use_sandbox: bool = True):
+    """Get executor with optional sandbox."""
+    if use_sandbox:
+        try:
+            return DockerSandbox()
+        except Exception:
+            return FallbackSandbox()
+    return FallbackSandbox()
 
 
 @router.get("/executions/{execution_id}")
@@ -53,14 +51,51 @@ async def get_execution(
     }
 
 
+@router.post("/debates/{debate_id}/generate-code")
+async def generate_code(
+    debate_id: str,
+    language: str = "python",
+    db: AsyncSession = Depends(get_db)
+):
+    """从辩论结果生成代码"""
+    from sqlalchemy import select
+
+    # Get debate
+    query = select(DebateModel).where(DebateModel.id == debate_id)
+    result = await db.execute(query)
+    debate = result.scalar_one_or_none()
+
+    if not debate:
+        raise HTTPException(status_code=404, detail="Debate not found")
+
+    if debate.status != "completed":
+        raise HTTPException(status_code=400, detail="Debate not completed")
+
+    if not debate.action_plan:
+        raise HTTPException(status_code=400, detail="No action plan available")
+
+    # Generate code using AI
+    from agents.mimo_agent import MIMOAgent
+    generator = CodeGenerator(agent=MIMOAgent())
+    generated = await generator.generate(debate.action_plan, language)
+
+    return {
+        "debate_id": debate_id,
+        "language": language,
+        "main_code": generated.main_code,
+        "test_code": generated.test_code,
+        "dependencies": generated.dependencies
+    }
+
+
 @router.post("/debates/{debate_id}/execute")
 async def execute_debate(
     debate_id: str,
+    use_sandbox: bool = True,
     db: AsyncSession = Depends(get_db)
 ):
     """执行辩论推荐方案"""
     from sqlalchemy import select
-    from datetime import datetime
 
     # Get debate
     query = select(DebateModel).where(DebateModel.id == debate_id)
@@ -86,9 +121,9 @@ async def execute_debate(
     await db.commit()
     await db.refresh(execution)
 
-    # Execute code
+    # Execute code in background
     import asyncio
-    asyncio.create_task(_execute_code(db, execution))
+    asyncio.create_task(_execute_code(db, execution, use_sandbox))
 
     return {
         "id": str(execution.id),
@@ -98,28 +133,93 @@ async def execute_debate(
     }
 
 
-async def _execute_code(db: AsyncSession, execution: ExecutionModel):
-    """Execute code in background."""
+@router.post("/executions/{execution_id}/retry")
+async def retry_execution(
+    execution_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """重试执行"""
+    from sqlalchemy import select
+
+    query = select(ExecutionModel).where(ExecutionModel.id == execution_id)
+    result = await db.execute(query)
+    execution = result.scalar_one_or_none()
+
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    if execution.status not in ["failed", "success"]:
+        raise HTTPException(status_code=400, detail="Can only retry failed or completed executions")
+
+    # Reset status
+    execution.status = "pending"
+    execution.error_message = None
+    execution.execution_result = None
+    await db.commit()
+
+    # Re-execute
+    import asyncio
+    asyncio.create_task(_execute_code(db, execution, True))
+
+    return {
+        "id": str(execution.id),
+        "status": execution.status,
+        "message": "Execution retry started"
+    }
+
+
+async def _execute_code(db: AsyncSession, execution: ExecutionModel,
+                        use_sandbox: bool = True):
+    """Execute code in background with retry logic."""
     from datetime import datetime
+    import logging
 
-    try:
-        execution.status = "running"
-        await db.commit()
+    logger = logging.getLogger(__name__)
+    max_retries = 3
 
-        # Execute code
-        executor = CodeExecutor()
-        result = await executor.execute(execution.code_generated, "python")
+    for attempt in range(max_retries):
+        try:
+            execution.status = "running"
+            await db.commit()
 
-        # Update execution record
-        execution.status = "success" if result.success else "failed"
-        execution.execution_result = result.output
-        execution.error_message = result.error
-        execution.completed_at = datetime.utcnow()
+            # Get executor
+            executor = _get_executor(use_sandbox)
 
-        await db.commit()
+            # Execute code
+            result = await executor.execute(execution.code_generated, "python")
 
-    except Exception as e:
-        execution.status = "failed"
-        execution.error_message = str(e)
-        execution.completed_at = datetime.utcnow()
-        await db.commit()
+            if result.success:
+                execution.status = "success"
+                execution.execution_result = result.output
+                execution.error_message = None
+                execution.completed_at = datetime.utcnow()
+                await db.commit()
+                return
+
+            # If failed, try to refine code (except on last attempt)
+            if attempt < max_retries - 1:
+                logger.info(f"Execution failed, attempting refinement (attempt {attempt + 1})")
+                from agents.mimo_agent import MIMOAgent
+                from execution.code_generator import GeneratedCode
+
+                generator = CodeGenerator(agent=MIMOAgent())
+                code = GeneratedCode(main_code=execution.code_generated, language="python")
+                refined = await generator.refine(code, result.error)
+                execution.code_generated = refined.main_code
+                continue
+
+            # Final failure
+            execution.status = "failed"
+            execution.execution_result = result.output
+            execution.error_message = result.error
+            execution.completed_at = datetime.utcnow()
+            await db.commit()
+
+        except Exception as e:
+            logger.error(f"Execution error: {e}")
+            if attempt == max_retries - 1:
+                execution.status = "failed"
+                execution.error_message = str(e)
+                execution.completed_at = datetime.utcnow()
+                await db.commit()
+            continue
