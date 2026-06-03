@@ -10,6 +10,12 @@ from backend.api import debate, memory, execution
 from backend.websocket import debate_ws
 from backend.database import init_db
 from backend.config import config
+from backend.logging_config import setup_logging
+from backend.middleware import (
+    request_id_middleware, rate_limit_middleware,
+    debate_agent_error_handler, generic_error_handler,
+    DebateAgentError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     # Startup
+    setup_logging(config.DEBUG and "DEBUG" or "INFO")
     await init_db()
     yield
     # Shutdown
@@ -30,6 +37,14 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Error handlers
+app.add_exception_handler(DebateAgentError, debate_agent_error_handler)
+app.add_exception_handler(Exception, generic_error_handler)
+
+# Middleware (order matters: last added = first executed)
+app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(request_id_middleware)
 
 # CORS middleware
 app.add_middleware(
