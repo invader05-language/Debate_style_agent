@@ -37,12 +37,13 @@ class ConnectionManager:
     async def broadcast(self, debate_id: str, message: dict):
         """Broadcast message to all connections in a debate room."""
         if debate_id in self.active_connections:
-            for connection in self.active_connections[debate_id]:
+            broken = set()
+            for connection in list(self.active_connections[debate_id]):
                 try:
                     await connection.send_json(message)
-                except:
-                    # Remove broken connections
-                    self.active_connections[debate_id].discard(connection)
+                except Exception:
+                    broken.add(connection)
+            self.active_connections[debate_id] -= broken
 
 
 # Global connection manager

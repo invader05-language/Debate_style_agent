@@ -84,7 +84,7 @@ class TestAgentBuildMessages:
             async def get_embedding(self, text):
                 return [0.1]
 
-        agent = TestAgent()
+        agent = TestAgent(model_name="test-model")
         messages = agent._build_messages(
             system_prompt="系统提示",
             user_message="用户消息",
@@ -108,7 +108,7 @@ class TestAgentBuildMessages:
             async def get_embedding(self, text):
                 return [0.1]
 
-        agent = TestAgent()
+        agent = TestAgent(model_name="test-model")
         context = [
             Message(
                 debate_id="test",
