@@ -2,12 +2,16 @@
 FastAPI entry point for Multi-AI Debate Agent Web Backend.
 """
 
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from backend.api import debate, memory, execution
 from backend.websocket import debate_ws
 from backend.database import init_db
+from backend.config import config
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -30,7 +34,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React dev server
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

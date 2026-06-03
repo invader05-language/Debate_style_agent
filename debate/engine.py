@@ -5,18 +5,20 @@ Orchestrates the debate process between multiple AI agents.
 
 import json
 import asyncio
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, TYPE_CHECKING
 from datetime import datetime
 from debate.protocol import (
     DebateStatus, Role, Message, Round, Verdict,
     DebateResult, DebateConfig
 )
 from debate.roles import get_role, RolePrompt
-from memory.store import MemoryStore
-from agents.base_agent import BaseAgent
-from agents.mimo_agent import MIMOAgent
-from agents.deepseek_agent import DeepSeekAgent
 from config import config
+
+if TYPE_CHECKING:
+    from memory.store import MemoryStore
+    from agents.base_agent import BaseAgent
+    from agents.mimo_agent import MIMOAgent
+    from agents.deepseek_agent import DeepSeekAgent
 
 
 class DebateEngine:
@@ -33,7 +35,11 @@ class DebateEngine:
     └─────────────────────────────────────────────┘
     """
 
-    def __init__(self, memory_store: Optional[MemoryStore] = None):
+    def __init__(self, memory_store: Optional['MemoryStore'] = None):
+        # Lazy imports to avoid circular dependency
+        from agents.mimo_agent import MIMOAgent
+        from agents.deepseek_agent import DeepSeekAgent
+
         self.memory_store = memory_store
         self.agents = {
             "mimo": MIMOAgent(),

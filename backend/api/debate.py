@@ -184,7 +184,27 @@ async def start_debate(
 async def _run_debate(db: AsyncSession, engine: DebateEngine,
                       debate: DebateModel, config: DebateConfig):
     """Run debate in background."""
+    from backend.websocket.debate_ws import (
+        broadcast_debate_message, broadcast_debate_status, broadcast_debate_verdict
+    )
+    from debate.protocol import Message
+
+    # Wire WebSocket callback to engine
+    async def on_message(message: Message):
+        await broadcast_debate_message(
+            debate_id=str(debate.id),
+            role=message.role.value if hasattr(message.role, 'value') else str(message.role),
+            content=message.content,
+            round_number=message.round_number,
+            model_used=message.model_used
+        )
+
+    engine.set_on_message_callback(on_message)
+
     try:
+        # Broadcast debate started
+        await broadcast_debate_status(str(debate.id), "running", "辩论开始")
+
         # Run debate
         result = await engine.start_debate(config)
 
@@ -213,7 +233,13 @@ async def _run_debate(db: AsyncSession, engine: DebateEngine,
         # Clear cache
         await cache.delete(f"debate:{debate.id}")
 
+        # Broadcast verdict and completion
+        if result.verdict:
+            await broadcast_debate_verdict(str(debate.id), result.verdict.dict())
+        await broadcast_debate_status(str(debate.id), "completed", "辩论完成")
+
     except Exception as e:
         debate.status = "failed"
         await db.commit()
+        await broadcast_debate_status(str(debate.id), "failed", f"辩论失败: {str(e)}")
         raise e

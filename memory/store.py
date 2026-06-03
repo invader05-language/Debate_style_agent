@@ -4,13 +4,15 @@ PostgreSQL-based memory storage with semantic search.
 """
 
 import uuid
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy import Column, String, Float, DateTime, Text, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Session
 from database import Base, SessionLocal
-from agents.mimo_agent import MIMOAgent
+
+if TYPE_CHECKING:
+    from agents.mimo_agent import MIMOAgent
 
 
 class MemoryModel(Base):
@@ -41,8 +43,12 @@ class MemoryStore:
     └─────────────────────────────────────────────┘
     """
 
-    def __init__(self, embedding_agent: Optional[MIMOAgent] = None):
-        self.embedding_agent = embedding_agent or MIMOAgent()
+    def __init__(self, embedding_agent: Optional['MIMOAgent'] = None):
+        if embedding_agent is None:
+            # Lazy import to avoid circular dependency
+            from agents.mimo_agent import MIMOAgent
+            embedding_agent = MIMOAgent()
+        self.embedding_agent = embedding_agent
 
     async def save(self, memory: dict) -> str:
         """

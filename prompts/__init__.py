@@ -1,7 +1,5 @@
 """
 Prompts module for Multi-AI Debate Agent.
+Note: Prompt templates are defined in debate/roles.py (RolePrompt classes).
+This module is kept for backwards compatibility.
 """
-
-from prompts.templates import PromptTemplates
-
-__all__ = ["PromptTemplates"]
