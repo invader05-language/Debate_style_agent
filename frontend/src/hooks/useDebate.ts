@@ -1,5 +1,6 @@
 /**
- * Custom hook for debate state management.
+ * 辩论状态管理 Hook。
+ * 支持 WebSocket 实时消息、断线自动重连、轮次进度追踪。
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -39,28 +40,39 @@ interface UseDebateReturn {
   loading: boolean;
   error: string | null;
   wsConnected: boolean;
+  currentRound: number;
+  maxRounds: number;
   createNewDebate: (topic: string) => Promise<string>;
   startDebateById: (debateId: string) => Promise<void>;
   connectWebSocket: (debateId: string) => void;
   disconnectWebSocket: () => void;
 }
 
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY_MS = 2000;
+const MAX_DEBATE_ROUNDS = 3;
+
 export const useDebate = (): UseDebateReturn => {
   const [debate, setDebate] = useState<Debate | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [currentRound, setCurrentRound] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debateIdRef = useRef<string | null>(null);
 
   const createNewDebate = async (topic: string): Promise<string> => {
     setLoading(true);
     setError(null);
+    setCurrentRound(0);
     try {
       const result = await createDebate(topic);
       setDebate(result);
       return result.id;
     } catch (err: any) {
-      setError(err.message || 'Failed to create debate');
+      setError(err.message || '创建辩论失败');
       throw err;
     } finally {
       setLoading(false);
@@ -74,7 +86,7 @@ export const useDebate = (): UseDebateReturn => {
       const result = await startDebate(debateId);
       setDebate(result);
     } catch (err: any) {
-      setError(err.message || 'Failed to start debate');
+      setError(err.message || '启动辩论失败');
       throw err;
     } finally {
       setLoading(false);
@@ -82,6 +94,9 @@ export const useDebate = (): UseDebateReturn => {
   };
 
   const connectWebSocket = useCallback((debateId: string) => {
+    debateIdRef.current = debateId;
+    reconnectAttemptsRef.current = 0;
+
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.close();
     }
@@ -91,17 +106,18 @@ export const useDebate = (): UseDebateReturn => {
 
     ws.onopen = () => {
       setWsConnected(true);
-      console.log('WebSocket connected');
+      reconnectAttemptsRef.current = 0;
     };
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
 
       if (data.type === 'debate_message') {
+        setCurrentRound(data.round_number);
         setDebate(prev => {
           if (!prev) return prev;
           const newMessage: Message = {
-            id: `msg-${Date.now()}`,
+            id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             debate_id: debateId,
             round_number: data.round_number,
             role: data.role,
@@ -135,20 +151,33 @@ export const useDebate = (): UseDebateReturn => {
       }
     };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setError('WebSocket connection error');
+    ws.onerror = () => {
+      setError('WebSocket 连接错误');
     };
 
     ws.onclose = () => {
       setWsConnected(false);
-      console.log('WebSocket disconnected');
+      // 自动重连
+      if (
+        debateIdRef.current === debateId &&
+        reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS
+      ) {
+        reconnectAttemptsRef.current += 1;
+        reconnectTimerRef.current = setTimeout(() => {
+          connectWebSocket(debateId);
+        }, RECONNECT_DELAY_MS);
+      }
     };
 
     wsRef.current = ws;
   }, []);
 
   const disconnectWebSocket = useCallback(() => {
+    debateIdRef.current = null;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
@@ -166,6 +195,8 @@ export const useDebate = (): UseDebateReturn => {
     loading,
     error,
     wsConnected,
+    currentRound,
+    maxRounds: MAX_DEBATE_ROUNDS,
     createNewDebate,
     startDebateById,
     connectWebSocket,

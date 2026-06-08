@@ -1,7 +1,3 @@
-/**
- * Memory page component for displaying and searching memories.
- */
-
 import React, { useState, useEffect } from 'react';
 import { listMemories, searchMemories } from '../services/api';
 
@@ -22,9 +18,7 @@ const MemoryPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    loadMemories();
-  }, []);
+  useEffect(() => { loadMemories(); }, []);
 
   const loadMemories = async () => {
     setLoading(true);
@@ -40,152 +34,145 @@ const MemoryPage: React.FC = () => {
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      loadMemories();
-      return;
-    }
-
+    if (!searchQuery.trim()) { loadMemories(); return; }
     setLoading(true);
     setError(null);
     try {
       const result = await searchMemories(searchQuery);
       setMemories(result.memories || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to search memories');
+      setError(err.message || 'Failed to search');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <span className="ml-3 text-gray-600">加载中...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center p-8">
-        <p className="text-red-600">{error}</p>
-        <button
-          onClick={loadMemories}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          重试
+  return (
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in-up">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-bold text-gray-900">Memory Bank</h1>
+            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-medium">Pro Plan</span>
+          </div>
+          <p className="text-sm text-gray-500">Persistent neural insights extracted from cross-model synthesis.</p>
+        </div>
+        <button className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+          <span className="material-icons text-base">download</span>
+          Export
         </button>
       </div>
-    );
-  }
 
-  return (
-    <div className="space-y-6">
-      {/* Search Section */}
-      <div className="bg-white rounded-lg shadow-lg p-6 border">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          记忆库
-        </h2>
-        <div className="flex space-x-4">
+      {/* Search */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <span className="material-icons absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="搜索记忆..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            placeholder="Search memories..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <button
-            onClick={handleSearch}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            搜索
-          </button>
-          <button
-            onClick={loadMemories}
-            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            重置
-          </button>
         </div>
+        <button onClick={handleSearch} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600">Search</button>
+        <button onClick={loadMemories} className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg text-sm hover:bg-gray-50">Reset</button>
       </div>
 
-      {/* Memory List */}
-      <div className="bg-white rounded-lg shadow-lg p-6 border">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          记忆列表
-        </h3>
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="ml-3 text-sm text-gray-500">Loading memories...</span>
+        </div>
+      )}
 
-        {memories.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
-            暂无记忆记录
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {memories.map((memory) => (
-              <div
-                key={memory.id}
-                className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
+      {/* Error */}
+      {error && (
+        <div className="text-center py-8">
+          <span className="material-icons text-red-400 text-4xl mb-2">error</span>
+          <p className="text-sm text-red-600 mb-4">{error}</p>
+          <button onClick={loadMemories} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Retry</button>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && !error && memories.length === 0 && (
+        <div className="text-center py-16">
+          <span className="material-icons text-gray-300 text-5xl mb-4">psychology</span>
+          <h3 className="text-lg font-medium text-gray-900 mb-1">No memories yet</h3>
+          <p className="text-sm text-gray-500">Complete a debate or thinking session to generate insights</p>
+        </div>
+      )}
+
+      {/* Memory Cards */}
+      {!loading && memories.length > 0 && (
+        <div className="space-y-4">
+          {memories.map((memory, index) => (
+            <div key={memory.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="px-5 py-4 border-b border-gray-50">
                 <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="text-lg font-medium text-gray-900">
-                      {memory.topic}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-2">
-                      {memory.debate_summary}
-                    </p>
-                    {memory.outcome && (
-                      <p className="text-sm text-green-600 mt-2">
-                        结果: {memory.outcome}
-                      </p>
-                    )}
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">{memory.topic}</h3>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                      <span>{memory.created_at ? new Date(memory.created_at).toLocaleDateString() : ''}</span>
+                      <span>•</span>
+                      <span>Confidence: {(memory.confidence * 100).toFixed(0)}%</span>
+                    </div>
                   </div>
-                  <div className="ml-4 flex flex-col items-end">
-                    <span className="text-sm text-gray-500">
-                      信心度: {(memory.confidence * 100).toFixed(0)}%
-                    </span>
-                    {memory.tags && memory.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {memory.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                  <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                      style={{ width: `${memory.confidence * 100}%` }}
+                    />
                   </div>
                 </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-gray-600">{memory.debate_summary}</p>
+
+                {memory.outcome && (
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                    <p className="text-sm text-green-700">{memory.outcome}</p>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {memory.tags && memory.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {memory.tags.map((tag, i) => (
+                      <span key={i} className="px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-600">{tag}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Lessons Learned */}
                 {memory.lessons_learned && memory.lessons_learned.length > 0 && (
-                  <div className="mt-3">
-                    <h5 className="text-sm font-medium text-gray-700">经验教训:</h5>
-                    <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
-                      {memory.lessons_learned.map((lesson, index) => (
-                        <li key={index}>{lesson}</li>
+                  <div className="pl-4 border-l-2 border-blue-200">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                      <span className="material-icons text-sm">lightbulb</span>
+                      Lessons Learned
+                    </h4>
+                    <ul className="space-y-1">
+                      {memory.lessons_learned.map((lesson, i) => (
+                        <li key={i} className="text-sm text-gray-600">{lesson}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {memory.created_at && (
-                  <p className="text-xs text-gray-400 mt-3">
-                    创建时间: {new Date(memory.created_at).toLocaleString()}
-                  </p>
-                )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
