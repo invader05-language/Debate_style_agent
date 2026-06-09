@@ -94,7 +94,7 @@ function Sidebar() {
   );
 }
 
-function AppLayout() {
+function MainLayout() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const marginLeft = sidebarCollapsed ? 'ml-16' : 'ml-56';
@@ -133,7 +133,6 @@ function AppLayout() {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/memories" element={<MemoryPage />} />
             <Route path="/models" element={<ModelsPage />} />
-            <Route path="/profile" element={<UserSpacePage />} />
           </Routes>
         </main>
       </div>
@@ -144,7 +143,12 @@ function AppLayout() {
 function App() {
   return (
     <Router>
-      <AppLayout />
+      <Routes>
+        {/* User Space — completely independent page, no main sidebar */}
+        <Route path="/profile/*" element={<UserSpacePage />} />
+        {/* Main app layout with sidebar */}
+        <Route path="/*" element={<MainLayout />} />
+      </Routes>
     </Router>
   );
 }
