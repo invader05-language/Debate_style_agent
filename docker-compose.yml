@@ -63,6 +63,44 @@ services:
       timeout: 5s
       retries: 5
 
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - promdata:/prometheus
+    depends_on:
+      - backend
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/debate-agent.json
+      - ./monitoring/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    environment:
+      - REDIS_ADDR=redis://redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+
 volumes:
   pgdata:
   redisdata:
+  promdata:
+  grafanadata:

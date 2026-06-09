@@ -1,188 +1,175 @@
 """
 Code execution engine for Multi-AI Debate Agent.
-Executes code in a sandboxed environment.
+Integrates CodeGenerator + DockerSandbox/FallbackSandbox.
 """
 
-import asyncio
-import tempfile
-import subprocess
-import os
-from typing import Optional
+import logging
+from typing import List, Optional
+
 from config import config
+from execution.sandbox import (
+    DockerSandbox, FallbackSandbox,
+    ExecutionResult, TestResult
+)
+from execution.code_generator import CodeGenerator, GeneratedCode
+from agents.base_agent import BaseAgent
 
-
-class ExecutionResult:
-    """Result of code execution."""
-
-    def __init__(self, success: bool, output: str, error: str = "",
-                 exit_code: int = 0, execution_time: float = 0.0):
-        self.success = success
-        self.output = output
-        self.error = error
-        self.exit_code = exit_code
-        self.execution_time = execution_time
-
-    def to_dict(self) -> dict:
-        return {
-            "success": self.success,
-            "output": self.output,
-            "error": self.error,
-            "exit_code": self.exit_code,
-            "execution_time": self.execution_time
-        }
+logger = logging.getLogger(__name__)
 
 
 class CodeExecutor:
     """
-    Code execution engine with sandbox support.
+    Unified code execution engine.
 
-    ┌─────────────────────────────────────────────┐
-    │              CodeExecutor                    │
-    ├─────────────────────────────────────────────┤
-    │ + execute(code: str, language: str) -> Result│
-    │ + execute_python(code: str) -> Result        │
-    │ + execute_javascript(code: str) -> Result    │
-    └─────────────────────────────────────────────┘
+    Flow: action_plan -> CodeGenerator -> Sandbox -> ExecutionResult
+
+    ┌──────────────────────────────────────────────────────────┐
+    │                     CodeExecutor                          │
+    ├──────────────────────────────────────────────────────────┤
+    │ + execute(code, language) -> ExecutionResult             │
+    │ + generate_and_execute(plan, lang, retries) -> ExecResult│
+    │ + run_tests(code, test_code, lang) -> TestResult         │
+    │ + generate_code(plan, lang) -> GeneratedCode             │
+    └──────────────────────────────────────────────────────────┘
     """
 
-    def __init__(self):
+    def __init__(self, use_sandbox: bool = True,
+                 agent: Optional[BaseAgent] = None):
         self.timeout = config.EXECUTION_TIMEOUT
         self.memory_limit = config.EXECUTION_MEMORY_LIMIT
 
-    async def execute(self, code: str, language: str = "python") -> ExecutionResult:
+        # Sandbox: prefer Docker, fallback to local subprocess
+        if use_sandbox:
+            try:
+                self.sandbox = DockerSandbox(
+                    timeout=self.timeout,
+                    memory_limit=self.memory_limit
+                )
+                logger.info("Using DockerSandbox for code execution")
+            except Exception as e:
+                logger.warning(f"Docker unavailable, using FallbackSandbox: {e}")
+                self.sandbox = FallbackSandbox(timeout=self.timeout)
+        else:
+            self.sandbox = FallbackSandbox(timeout=self.timeout)
+
+        # Code generator (lazy init — needs an agent)
+        self._agent = agent
+        self._generator: Optional[CodeGenerator] = None
+
+    def _get_generator(self) -> CodeGenerator:
+        """Lazy-init CodeGenerator with a default agent."""
+        if self._generator is None:
+            if self._agent is None:
+                from agents.mimo_agent import MIMOAgent
+                self._agent = MIMOAgent()
+            self._generator = CodeGenerator(agent=self._agent)
+        return self._generator
+
+    # ── Core execution ──────────────────────────────────────────
+
+    async def execute(self, code: str,
+                      language: str = "python") -> ExecutionResult:
         """
         Execute code in sandbox.
 
         Args:
-            code: Code to execute
-            language: Programming language
+            code: Source code to execute
+            language: "python" or "javascript"
 
         Returns:
-            ExecutionResult with output or error
+            ExecutionResult with output/error/exit_code
         """
-        if language == "python":
-            return await self.execute_python(code)
-        elif language == "javascript":
-            return await self.execute_javascript(code)
-        else:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=f"Unsupported language: {language}"
-            )
+        return await self.sandbox.execute(code, language)
 
     async def execute_python(self, code: str) -> ExecutionResult:
-        """
-        Execute Python code in sandbox.
-
-        Args:
-            code: Python code to execute
-
-        Returns:
-            ExecutionResult with output or error
-        """
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(code)
-            temp_file = f.name
-
-        try:
-            # Execute with timeout
-            process = await asyncio.create_subprocess_exec(
-                'python', temp_file,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=self.timeout
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                return ExecutionResult(
-                    success=False,
-                    output="",
-                    error=f"Execution timeout after {self.timeout} seconds",
-                    exit_code=-1
-                )
-
-            return ExecutionResult(
-                success=process.returncode == 0,
-                output=stdout.decode('utf-8', errors='ignore'),
-                error=stderr.decode('utf-8', errors='ignore'),
-                exit_code=process.returncode
-            )
-
-        except Exception as e:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=str(e),
-                exit_code=-1
-            )
-        finally:
-            # Clean up temp file
-            try:
-                os.unlink(temp_file)
-            except:
-                pass
+        """Execute Python code (convenience alias)."""
+        return await self.execute(code, "python")
 
     async def execute_javascript(self, code: str) -> ExecutionResult:
+        """Execute JavaScript code (convenience alias)."""
+        return await self.execute(code, "javascript")
+
+    # ── Generate + Execute pipeline ─────────────────────────────
+
+    async def generate_code(self, action_plan: List[str],
+                            language: str = "python") -> GeneratedCode:
         """
-        Execute JavaScript code in sandbox.
+        Generate executable code from a debate action_plan.
 
         Args:
-            code: JavaScript code to execute
+            action_plan: List of implementation steps from the verdict
+            language: Target language
 
         Returns:
-            ExecutionResult with output or error
+            GeneratedCode with main_code, test_code, dependencies
         """
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
-            f.write(code)
-            temp_file = f.name
+        generator = self._get_generator()
+        return await generator.generate(action_plan, language)
 
-        try:
-            # Execute with timeout
-            process = await asyncio.create_subprocess_exec(
-                'node', temp_file,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
+    async def generate_and_execute(
+        self,
+        action_plan: List[str],
+        language: str = "python",
+        max_retries: int = 3
+    ) -> ExecutionResult:
+        """
+        Full pipeline: generate code from action_plan, execute it,
+        auto-fix on failure up to max_retries.
 
-            try:
-                stdout, stderr = await asyncio.wait_for(
-                    process.communicate(),
-                    timeout=self.timeout
-                )
-            except asyncio.TimeoutError:
-                process.kill()
-                return ExecutionResult(
-                    success=False,
-                    output="",
-                    error=f"Execution timeout after {self.timeout} seconds",
-                    exit_code=-1
-                )
+        Args:
+            action_plan: Steps from debate verdict
+            language: Target language
+            max_retries: Max fix-and-rerun attempts
 
-            return ExecutionResult(
-                success=process.returncode == 0,
-                output=stdout.decode('utf-8', errors='ignore'),
-                error=stderr.decode('utf-8', errors='ignore'),
-                exit_code=process.returncode
-            )
+        Returns:
+            ExecutionResult of the final attempt
+        """
+        generator = self._get_generator()
 
-        except Exception as e:
+        # Step 1: Generate initial code
+        logger.info(f"Generating code from {len(action_plan)}-step action plan")
+        generated = await generator.generate(action_plan, language)
+
+        if not generated.main_code.strip():
             return ExecutionResult(
                 success=False,
-                output="",
-                error=str(e),
+                error="Code generation produced empty output",
                 exit_code=-1
             )
-        finally:
-            # Clean up temp file
-            try:
-                os.unlink(temp_file)
-            except:
-                pass
+
+        # Step 2: Execute with retry loop
+        for attempt in range(1, max_retries + 1):
+            logger.info(f"Execution attempt {attempt}/{max_retries}")
+            result = await self.sandbox.execute(generated.main_code, language)
+
+            if result.success:
+                logger.info(f"Execution succeeded on attempt {attempt}")
+                return result
+
+            logger.warning(
+                f"Execution failed on attempt {attempt}: "
+                f"{result.error[:200]}"
+            )
+
+            # Step 3: Ask AI to fix the code
+            if attempt < max_retries:
+                logger.info("Requesting code fix from AI")
+                generated = await generator.refine(generated, result.error)
+
+        logger.error(f"Execution failed after {max_retries} attempts")
+        return result
+
+    async def run_tests(self, code: str, test_code: str,
+                        language: str = "python") -> TestResult:
+        """
+        Run code and its tests in sandbox.
+
+        Args:
+            code: Main source code
+            test_code: Test code
+            language: Language
+
+        Returns:
+            TestResult with passed/failed/errors counts
+        """
+        return await self.sandbox.execute_with_tests(code, test_code, language)

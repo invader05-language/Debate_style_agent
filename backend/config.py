@@ -34,5 +34,16 @@ class BackendConfig:
     # WebSocket
     WS_HEARTBEAT: int = int(os.getenv("WS_HEARTBEAT", "30"))  # seconds
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "debate-agent-secret-key-change-in-production")
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
+
+    # AI API Keys
+    MIMO_API_KEY: str = os.getenv("MIMO_API_KEY", "")
+    MIMO_API_URL: str = os.getenv("MIMO_API_URL", "https://token-plan-sgp.xiaomimimo.com/v1")
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_API_URL: str = os.getenv("DEEPSEEK_API_URL", "https://api.deepseek.com/v1")
+
 
 config = BackendConfig()

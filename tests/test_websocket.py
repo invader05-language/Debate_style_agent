@@ -156,3 +156,45 @@ class TestBroadcastHelpers:
         assert call_args["verdict"]["recommendation"] == "建议"
 
         manager.active_connections.clear()
+
+    @pytest.mark.asyncio
+    async def test_broadcast_to_multiple_rooms(self):
+        """测试广播不影响其他房间."""
+        from backend.websocket.debate_ws import broadcast_debate_message, manager
+
+        mock_ws_1 = AsyncMock()
+        mock_ws_2 = AsyncMock()
+        manager.active_connections["debate-1"] = {mock_ws_1}
+        manager.active_connections["debate-2"] = {mock_ws_2}
+
+        await broadcast_debate_message(
+            debate_id="debate-1",
+            role="pro",
+            content="msg",
+            round_number=1,
+            model_used="mimo"
+        )
+
+        mock_ws_1.send_json.assert_called_once()
+        mock_ws_2.send_json.assert_not_called()
+
+        manager.active_connections.clear()
+
+    @pytest.mark.asyncio
+    async def test_connect_empty_debate_id(self, manager):
+        """测试空 debate ID 连接."""
+        ws = AsyncMock()
+        await manager.connect(ws, "")
+        assert "" in manager.active_connections
+        assert ws in manager.active_connections[""]
+
+    @pytest.mark.asyncio
+    async def test_broadcast_invalid_json(self, manager):
+        """测试广播处理序列化异常."""
+        ws = AsyncMock()
+        ws.send_json.side_effect = TypeError("not serializable")
+        manager.active_connections["debate-1"] = {ws}
+
+        # Should not raise — broken connection gets removed
+        await manager.broadcast("debate-1", {"type": "test"})
+        assert ws not in manager.active_connections["debate-1"]

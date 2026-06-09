@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_debates_status ON debates(status);
 CREATE INDEX IF NOT EXISTS idx_debates_created_at ON debates(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_messages_debate ON messages(debate_id);
 CREATE INDEX IF NOT EXISTS idx_messages_round ON messages(debate_id, round_number);
-CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories USING gin(to_tsvector('chinese', topic));
+CREATE INDEX IF NOT EXISTS idx_memories_topic ON memories USING gin(to_tsvector('english', topic));
 CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_executions_debate ON executions(debate_id);
 CREATE INDEX IF NOT EXISTS idx_executions_status ON executions(status);

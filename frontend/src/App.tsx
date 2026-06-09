@@ -6,9 +6,7 @@ import MemoryPage from './pages/MemoryPage';
 import ModelsPage from './pages/ModelsPage';
 import ThinkPage from './pages/ThinkPage';
 import DashboardPage from './pages/DashboardPage';
-import ProfilePage from './pages/ProfilePage';
-import HelpCenterPage from './pages/HelpCenterPage';
-import AnalyticsTerminalPage from './pages/AnalyticsTerminalPage';
+import UserSpacePage from './pages/UserSpacePage';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -17,9 +15,6 @@ const navItems = [
   { path: '/history', label: 'History', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
   { path: '/memories', label: 'Memory', icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z' },
   { path: '/models', label: 'Models', icon: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z' },
-  { path: '/profile', label: 'Profile', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { path: '/analytics', label: 'Analytics', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-  { path: '/help', label: 'Help Center', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
 
 function Sidebar() {
@@ -79,7 +74,11 @@ function Sidebar() {
 
       {/* Bottom user area */}
       <div className="absolute bottom-4 left-0 right-0 px-3">
-        <div className={`flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 ${collapsed ? 'justify-center' : ''}`}>
+        <Link
+          to="/profile"
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer ${collapsed ? 'justify-center' : ''}`}
+          title={collapsed ? 'User Space' : undefined}
+        >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             U
           </div>
@@ -89,7 +88,7 @@ function Sidebar() {
               <p className="text-[10px] text-gray-400 truncate">Pro Plan</p>
             </div>
           )}
-        </div>
+        </Link>
       </div>
     </aside>
   );
@@ -134,9 +133,7 @@ function AppLayout() {
             <Route path="/history" element={<HistoryPage />} />
             <Route path="/memories" element={<MemoryPage />} />
             <Route path="/models" element={<ModelsPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/analytics" element={<AnalyticsTerminalPage />} />
-            <Route path="/help" element={<HelpCenterPage />} />
+            <Route path="/profile" element={<UserSpacePage />} />
           </Routes>
         </main>
       </div>

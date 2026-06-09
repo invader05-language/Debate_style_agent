@@ -86,10 +86,35 @@ GRANT ALL PRIVILEGES ON DATABASE debate_user TO debate_agent;
 
 # 启用 pgvector 扩展
 sudo -u postgres psql -d debate_agent -c "CREATE EXTENSION IF NOT EXISTS vector;"
-
-# 执行初始化脚本
-sudo -u postgres psql -d debate_agent -f scripts/init-db.sql
 ```
+
+### 数据库迁移（Alembic）
+
+使用 Alembic 管理数据库 schema：
+
+```bash
+# 升级到最新版本
+python scripts/migrate.py upgrade
+
+# 查看当前版本
+python scripts/migrate.py current
+
+# 查看迁移历史
+python scripts/migrate.py history
+
+# 降级到指定版本
+python scripts/migrate.py downgrade <revision>
+
+# 检查是否有待执行的迁移
+python scripts/migrate.py check
+```
+
+迁移文件位于 `alembic/versions/`，初始迁移创建以下表：
+- `users` - 用户认证表
+- `debates` - 辩论记录表
+- `messages` - 辩论消息表
+- `memories` - 记忆存储表（含 pgvector embedding）
+- `executions` - 代码执行记录表
 
 ### Redis 安装配置
 
@@ -113,6 +138,9 @@ export DATABASE_URL=postgresql://debate_user:your_password@localhost:5432/debate
 export REDIS_URL=redis://localhost:6379/0
 export MIMO_API_KEY=your_key
 export DEEPSEEK_API_KEY=your_key
+
+# 执行数据库迁移
+python scripts/migrate.py upgrade
 
 # 启动后端
 uvicorn backend.main:app --host 0.0.0.0 --port 8000
@@ -173,9 +201,29 @@ sudo vim /etc/logrotate.d/debate-agent
 
 ### 监控告警
 
-- 健康检查: `GET /health`
-- API 文档: `GET /docs`
-- 建议使用 Prometheus + Grafana 监控
+项目内置 Prometheus + Grafana 监控栈：
+
+```bash
+# 启动监控服务
+docker-compose up -d prometheus grafana redis-exporter
+
+# 访问 Grafana
+open http://localhost:3001
+# 默认账号: admin / admin
+```
+
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3001` (自动配置 Prometheus 数据源)
+- Redis Exporter: `http://localhost:9121`
+- 指标端点: `GET /metrics`
+- 健康检查: `GET /health` (含 Redis 连接状态和延迟)
+
+Grafana Dashboard 自动加载，包含 14 个面板：
+- 活跃辩论数、WebSocket 连接数
+- HTTP 请求速率、p95 延迟
+- AI Agent 请求时长、降级事件
+- 记忆搜索速率、缓存命中率
+- 代码执行统计、限流命中
 
 ### 备份策略
 
@@ -224,4 +272,18 @@ docker-compose build --no-cache
 
 # 清理所有容器
 docker-compose down -v
+```
+
+### Alembic 迁移失败
+
+```bash
+# 查看当前数据库版本
+python scripts/migrate.py current
+
+# 手动修复后标记为最新
+python scripts/migrate.py upgrade head
+
+# 回滚并重新执行
+python scripts/migrate.py downgrade -1
+python scripts/migrate.py upgrade
 ```

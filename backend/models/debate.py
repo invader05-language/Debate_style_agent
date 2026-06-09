@@ -4,8 +4,8 @@ Debate database model for Multi-AI Debate Agent.
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, JSONB
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, DateTime, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from backend.database import Base
 
 

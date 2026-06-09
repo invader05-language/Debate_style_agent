@@ -150,7 +150,6 @@ class DockerSandbox:
     async def execute_with_tests(self, code: str, test_code: str,
                                   language: str = "python") -> TestResult:
         """执行代码并运行测试."""
-        # First execute main code
         result = await self.execute(code, language)
         if not result.success:
             return TestResult(
@@ -158,10 +157,8 @@ class DockerSandbox:
                 output=f"Main code execution failed:\n{result.error}"
             )
 
-        # Then execute tests
         test_result = await self.execute(test_code, language)
 
-        # Parse test output
         passed = 0
         failed = 0
         errors = 0
@@ -240,3 +237,25 @@ class FallbackSandbox:
             )
         finally:
             os.unlink(code_file)
+
+    async def execute_with_tests(self, code: str, test_code: str,
+                                  language: str = "python") -> TestResult:
+        """执行代码并运行测试 (本地)."""
+        result = await self.execute(code, language)
+        if not result.success:
+            return TestResult(
+                failed=1,
+                output=f"Main code execution failed:\n{result.error}"
+            )
+
+        test_result = await self.execute(test_code, language)
+
+        passed = test_result.output.count("PASSED") if "PASSED" in test_result.output else 0
+        failed = test_result.output.count("FAILED") if "FAILED" in test_result.output else 0
+        errors = test_result.output.count("ERROR") if "ERROR" in test_result.output else 0
+
+        if test_result.success and passed == 0:
+            passed = 1
+
+        return TestResult(passed=passed, failed=failed, errors=errors,
+                          output=test_result.output)

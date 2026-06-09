@@ -7,7 +7,8 @@
 - **多模型辩论**: MIMO 和 DeepSeek 分别扮演正方、反方、裁判
 - **实时更新**: WebSocket 推送辩论过程中的每条消息
 - **记忆系统**: PostgreSQL + pgvector 语义搜索，自动保存辩论经验
-- **代码执行**: 从辩论结果自动生成代码并在沙箱中执行
+- **代码执行**: 从辩论结果自动生成代码并在 Docker 沙箱中安全执行
+- **自动修复**: 执行失败时 AI 自动分析错误并重试，最多 3 次
 - **Web 界面**: React + TypeScript 前端，支持辩论创建、历史查看、记忆搜索
 
 ## 技术栈
@@ -68,37 +69,59 @@ npm start
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │  实时消息推送  │     │ MIMO/DeepSeek │     │   记忆搜索    │
 └──────────────┘     └──────────────┘     └──────────────┘
+                            │
+                            ↓
+                     ┌──────────────┐
+                     │  执行引擎     │
+                     │  代码生成     │
+                     │  Docker 沙箱  │
+                     │  自动修复     │
+                     └──────────────┘
 ```
+
+### 执行引擎流程
+
+辩论完成 → 提取 action\_plan → AI 生成代码 → Docker 沙箱执行
+↓ (失败)
+AI 分析错误 → 修复代码 → 重试 (最多 3 次)
 
 ## 配置说明
 
-| 环境变量 | 说明 | 默认值 |
-|---------|------|--------|
-| `DATABASE_URL` | PostgreSQL 连接字符串 | `postgresql://postgres:postgres@localhost:5432/debate_agent` |
-| `REDIS_URL` | Redis 连接字符串 | `redis://localhost:6379/0` |
-| `MIMO_API_KEY` | MIMO API 密钥 | 必填 |
-| `MIMO_API_URL` | MIMO API 地址 | `https://api.mimo.com/v1` |
-| `DEEPSEEK_API_KEY` | DeepSeek API 密钥 | 必填 |
-| `DEEPSEEK_API_URL` | DeepSeek API 地址 | `https://api.deepseek.com/v1` |
-| `MAX_DEBATE_ROUNDS` | 最大辩论轮数 | `3` |
-| `DEBATE_TIMEOUT` | 辩论超时（秒） | `300` |
+| 环境变量                | 说明               | 默认值                                                          |
+| ------------------- | ---------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`      | PostgreSQL 连接字符串 | `postgresql://postgres:postgres@localhost:5432/debate_agent` |
+| `REDIS_URL`         | Redis 连接字符串      | `redis://localhost:6379/0`                                   |
+| `MIMO_API_KEY`      | MIMO API 密钥      | 必填                                                           |
+| `MIMO_API_URL`      | MIMO API 地址      | `https://api.mimo.com/v1`                                    |
+| `DEEPSEEK_API_KEY`  | DeepSeek API 密钥  | 必填                                                           |
+| `DEEPSEEK_API_URL`  | DeepSeek API 地址  | `https://api.deepseek.com/v1`                                |
+| `MAX_DEBATE_ROUNDS` | 最大辩论轮数           | `3`                                                          |
+| `DEBATE_TIMEOUT`    | 辩论超时（秒）          | `300`                                                        |
 
 ## API 文档
 
 启动后端后访问：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+
+- Swagger UI: <http://localhost:8000/docs>
+- ReDoc: <http://localhost:8000/redoc>
 
 ### 主要 API 端点
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | /api/debates | 创建辩论 |
-| GET | /api/debates | 辩论列表 |
-| POST | /api/debates/{id}/start | 开始辩论 |
-| POST | /api/debates/{id}/execute | 执行方案 |
-| POST | /api/debates/{id}/generate-code | 生成代码 |
-| GET | /api/memories/search?q= | 搜索记忆 |
+| 方法   | 路径                              | 说明         |
+| ---- | ------------------------------- | ---------- |
+| POST | /api/debates                    | 创建辩论       |
+| GET  | /api/debates                    | 辩论列表（分页）   |
+| GET  | /api/debates/{id}               | 辩论详情       |
+| POST | /api/debates/{id}/start         | 开始辩论       |
+| POST | /api/debates/{id}/execute       | 执行方案（直接执行） |
+| POST | /api/debates/{id}/generate-code | AI 生成代码并执行 |
+| GET  | /api/debates/{id}/executions    | 辩论的执行记录列表  |
+| GET  | /api/executions/{id}            | 执行结果详情     |
+| POST | /api/executions/{id}/retry      | 重试失败的执行    |
+| GET  | /api/memories                   | 记忆列表       |
+| GET  | /api/memories/{id}              | 记忆详情       |
+| GET  | /api/memories/search?q=         | 语义搜索记忆     |
+| WS   | /ws/debate/{id}                 | 辩论实时消息推送   |
 
 ## 开发指南
 
@@ -144,4 +167,4 @@ debate-agent/
 
 ## 许可证
 
-MIT License
+MIT 开源许可证

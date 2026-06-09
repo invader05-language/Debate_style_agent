@@ -6,7 +6,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from backend.api import debate, memory, execution
+from backend.api import debate, memory, execution, auth
 from backend.websocket import debate_ws
 from backend.database import init_db
 from backend.config import config
@@ -16,6 +16,8 @@ from backend.middleware import (
     debate_agent_error_handler, generic_error_handler,
     DebateAgentError
 )
+from backend.metrics_middleware import metrics_middleware
+from backend.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,7 @@ app.add_exception_handler(Exception, generic_error_handler)
 # Middleware (order matters: last added = first executed)
 app.middleware("http")(rate_limit_middleware)
 app.middleware("http")(request_id_middleware)
+app.middleware("http")(metrics_middleware)
 
 # CORS middleware
 app.add_middleware(
@@ -56,6 +59,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(debate.router, prefix="/api", tags=["debates"])
 app.include_router(memory.router, prefix="/api", tags=["memories"])
 app.include_router(execution.router, prefix="/api", tags=["executions"])
@@ -74,5 +78,20 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check endpoint with Redis status."""
+    redis_health = await cache.health_check()
+    return {
+        "status": "healthy",
+        "redis": redis_health
+    }
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    from fastapi.responses import Response
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST
+    )

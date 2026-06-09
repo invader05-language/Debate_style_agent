@@ -1,46 +1,27 @@
 """
 Memory store implementation for Multi-AI Debate Agent.
-PostgreSQL-based memory storage with semantic search.
+PostgreSQL-based memory storage with pgvector semantic search.
+Uses async sessions from backend.database.
 """
 
-import uuid
+import logging
 from typing import List, Optional, TYPE_CHECKING
-from datetime import datetime
-from sqlalchemy import Column, String, Float, DateTime, Text, ARRAY
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Session
-from database import Base, SessionLocal
+from sqlalchemy import text, select
+from backend.database import AsyncSessionLocal
+from backend.models.memory import MemoryModel
 
 if TYPE_CHECKING:
     from agents.mimo_agent import MIMOAgent
 
-
-class MemoryModel(Base):
-    """Memory database model."""
-    __tablename__ = "memories"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    topic = Column(String(500), nullable=False)
-    debate_summary = Column(Text, nullable=False)
-    outcome = Column(Text, nullable=True)
-    confidence = Column(Float, default=0.5)
-    tags = Column(ARRAY(String), default=[])
-    lessons_learned = Column(ARRAY(String), default=[])
-    created_at = Column(DateTime, default=datetime.utcnow)
+logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
     """
-    Memory store with PostgreSQL backend.
+    Memory store with PostgreSQL backend and pgvector semantic search.
 
-    ┌─────────────────────────────────────────────┐
-    │              MemoryStore                     │
-    ├─────────────────────────────────────────────┤
-    │ + save(memory: dict) -> str                 │
-    │ + search(query: str, limit: int) -> List    │
-    │ + get_by_topic(topic: str) -> List          │
-    │ + get_relevant(topic: str) -> List          │
-    └─────────────────────────────────────────────┘
+    Uses cosine similarity on embedding vectors for semantic search,
+    with ILIKE text search as fallback when embeddings are unavailable.
     """
 
     def __init__(self, embedding_agent: Optional['MIMOAgent'] = None):
@@ -51,93 +32,122 @@ class MemoryStore:
         self.embedding_agent = embedding_agent
 
     async def save(self, memory: dict) -> str:
-        """
-        Save memory to database.
+        """Save memory to database with optional embedding generation."""
+        async with AsyncSessionLocal() as db:
+            try:
+                # Generate embedding for semantic search
+                embedding = None
+                try:
+                    embedding_text = f"{memory.get('topic', '')} {memory.get('debate_summary', '')}"
+                    embedding = await self.embedding_agent.get_embedding(embedding_text)
+                except Exception as e:
+                    logger.warning(f"Failed to generate embedding: {e}")
 
-        Args:
-            memory: Memory dict with topic, debate_summary, etc.
+                db_memory = MemoryModel(
+                    topic=memory.get("topic", ""),
+                    debate_summary=memory.get("debate_summary", ""),
+                    outcome=memory.get("outcome", ""),
+                    confidence=memory.get("confidence", 0.5),
+                    tags=memory.get("tags", []),
+                    lessons_learned=memory.get("lessons_learned", [])
+                )
 
-        Returns:
-            Memory ID
-        """
-        db = SessionLocal()
-        try:
-            db_memory = MemoryModel(
-                topic=memory.get("topic", ""),
-                debate_summary=memory.get("debate_summary", ""),
-                outcome=memory.get("outcome", ""),
-                confidence=memory.get("confidence", 0.5),
-                tags=memory.get("tags", []),
-                lessons_learned=memory.get("lessons_learned", [])
-            )
-            db.add(db_memory)
-            db.commit()
-            db.refresh(db_memory)
-            return str(db_memory.id)
-        finally:
-            db.close()
+                if embedding:
+                    db_memory.embedding = embedding
+
+                db.add(db_memory)
+                await db.commit()
+                await db.refresh(db_memory)
+                return str(db_memory.id)
+            except Exception:
+                await db.rollback()
+                raise
 
     async def search(self, query: str, limit: int = 5) -> List[dict]:
-        """
-        Search memories by text similarity.
+        """Search memories by semantic similarity using pgvector."""
+        async with AsyncSessionLocal() as db:
+            try:
+                # Try semantic search first
+                embedding = None
+                try:
+                    embedding = await self.embedding_agent.get_embedding(query)
+                except Exception as e:
+                    logger.warning(f"Embedding generation failed, falling back to text search: {e}")
 
-        Args:
-            query: Search query
-            limit: Maximum results
+                if embedding:
+                    stmt = text("""
+                        SELECT *, 1 - (embedding <=> :query_embedding::vector) as similarity
+                        FROM memories
+                        WHERE embedding IS NOT NULL
+                        ORDER BY embedding <=> :query_embedding::vector
+                        LIMIT :limit
+                    """)
+                    result = await db.execute(stmt, {
+                        "query_embedding": str(embedding),
+                        "limit": limit
+                    })
+                    rows = result.fetchall()
 
-        Returns:
-            List of matching memories
-        """
-        db = SessionLocal()
-        try:
-            # Simple text search (can be enhanced with pgvector)
-            memories = db.query(MemoryModel).filter(
-                MemoryModel.topic.ilike(f"%{query}%") |
-                MemoryModel.debate_summary.ilike(f"%{query}%")
-            ).limit(limit).all()
+                    if rows:
+                        return [self._row_to_dict(row) for row in rows]
 
-            return [self._to_dict(m) for m in memories]
-        finally:
-            db.close()
+                # Fallback to ILIKE text search
+                stmt = select(MemoryModel).where(
+                    MemoryModel.topic.ilike(f"%{query}%") |
+                    MemoryModel.debate_summary.ilike(f"%{query}%")
+                ).limit(limit)
+                result = await db.execute(stmt)
+                memories = result.scalars().all()
+
+                return [self._to_dict(m) for m in memories]
+            except Exception:
+                await db.rollback()
+                raise
 
     async def get_by_topic(self, topic: str) -> List[dict]:
-        """
-        Get memories by exact topic.
-
-        Args:
-            topic: Topic to search
-
-        Returns:
-            List of matching memories
-        """
-        db = SessionLocal()
-        try:
-            memories = db.query(MemoryModel).filter(
+        """Get memories by exact topic."""
+        async with AsyncSessionLocal() as db:
+            stmt = select(MemoryModel).where(
                 MemoryModel.topic.ilike(f"%{topic}%")
-            ).all()
-
+            )
+            result = await db.execute(stmt)
+            memories = result.scalars().all()
             return [self._to_dict(m) for m in memories]
-        finally:
-            db.close()
 
     async def get_relevant(self, current_topic: str, limit: int = 3) -> List[dict]:
-        """
-        Get relevant memories for current topic.
+        """Get relevant memories for current topic using semantic search."""
+        # Try semantic search first
+        embedding = None
+        try:
+            embedding = await self.embedding_agent.get_embedding(current_topic)
+        except Exception as e:
+            logger.warning(f"Embedding failed for get_relevant: {e}")
 
-        Args:
-            current_topic: Current debate topic
-            limit: Maximum results
+        if embedding:
+            async with AsyncSessionLocal() as db:
+                stmt = text("""
+                    SELECT *, 1 - (embedding <=> :query_embedding::vector) as similarity
+                    FROM memories
+                    WHERE embedding IS NOT NULL
+                    ORDER BY embedding <=> :query_embedding::vector
+                    LIMIT :limit
+                """)
+                result = await db.execute(stmt, {
+                    "query_embedding": str(embedding),
+                    "limit": limit
+                })
+                rows = result.fetchall()
 
-        Returns:
-            List of relevant memories
-        """
-        # First try exact topic match
+                if rows:
+                    return [self._row_to_dict(row) for row in rows]
+
+        # Fallback to topic match
         exact_matches = await self.get_by_topic(current_topic)
         if exact_matches:
             return exact_matches[:limit]
 
         # Then try keyword search
-        keywords = current_topic.split()[:3]  # First 3 words
+        keywords = current_topic.split()[:3]
         all_memories = []
 
         for keyword in keywords:
@@ -167,4 +177,18 @@ class MemoryStore:
             "tags": memory.tags,
             "lessons_learned": memory.lessons_learned,
             "created_at": memory.created_at.isoformat() if memory.created_at else None
+        }
+
+    def _row_to_dict(self, row) -> dict:
+        """Convert database row to dict (includes similarity score)."""
+        return {
+            "id": str(row.id),
+            "topic": row.topic,
+            "debate_summary": row.debate_summary,
+            "outcome": row.outcome,
+            "confidence": row.confidence,
+            "tags": row.tags,
+            "lessons_learned": row.lessons_learned,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            "similarity": float(row.similarity) if hasattr(row, 'similarity') else None
         }

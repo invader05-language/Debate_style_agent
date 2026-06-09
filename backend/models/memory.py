@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Float, DateTime, Text, ARRAY
 from sqlalchemy.dialects.postgresql import UUID
+from pgvector.sqlalchemy import Vector
 from backend.database import Base
 
 
@@ -20,6 +21,7 @@ class MemoryModel(Base):
     confidence = Column(Float, default=0.5)
     tags = Column(ARRAY(String), default=[])
     lessons_learned = Column(ARRAY(String), default=[])
+    embedding = Column(Vector(1024), nullable=True)  # pgvector embedding
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def to_dict(self):

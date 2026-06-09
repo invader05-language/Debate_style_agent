@@ -1,0 +1,181 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Multi-AI Debate Agent Monitoring Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Active Debates",
+      "type": "stat",
+      "targets": [{ "expr": "debate_agent_debates_active", "legendFormat": "Active" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Active WebSocket Connections",
+      "type": "stat",
+      "targets": [{ "expr": "sum(debate_agent_ws_connections_active)", "legendFormat": "Connections" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Debates",
+      "type": "stat",
+      "targets": [{ "expr": "sum(debate_agent_debates_total)", "legendFormat": "Total" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.1 }] } }
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Cache Hit Ratio",
+      "type": "stat",
+      "targets": [{ "expr": "debate_agent_cache_hit_ratio", "legendFormat": "Hit Ratio" }]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(debate_agent_http_requests_total[5m])) by (method)", "legendFormat": "{{method}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "title": "HTTP Request Latency (p95)",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(debate_agent_http_request_duration_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "{{endpoint}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 7,
+      "title": "AI Agent Request Duration",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(debate_agent_ai_request_duration_seconds_bucket[5m])) by (le, agent))", "legendFormat": "{{agent}} p95" },
+        { "expr": "histogram_quantile(0.50, sum(rate(debate_agent_ai_request_duration_seconds_bucket[5m])) by (le, agent))", "legendFormat": "{{agent}} p50" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 8,
+      "title": "Debate Duration",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(debate_agent_debate_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.50, sum(rate(debate_agent_debate_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p50" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "id": 9,
+      "title": "AI Agent Requests by Status",
+      "type": "piechart",
+      "targets": [
+        { "expr": "sum(increase(debate_agent_ai_requests_total[1h])) by (status)", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "id": 10,
+      "title": "Agent Fallback Events",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(increase(debate_agent_ai_fallback_total[5m])) by (from_agent, to_agent)", "legendFormat": "{{from_agent}} → {{to_agent}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 11,
+      "title": "Memory Search Rate",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(rate(debate_agent_memory_search_total[5m])) by (method)", "legendFormat": "{{method}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 12,
+      "title": "Code Executions by Language",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(increase(debate_agent_executions_total[1h])) by (language, status)", "legendFormat": "{{language}} ({{status}})" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "id": 13,
+      "title": "Rate Limit Hits",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(increase(debate_agent_rate_limit_hits_total[5m])) by (endpoint)", "legendFormat": "{{endpoint}}" }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "id": 14,
+      "title": "Execution Retries",
+      "type": "timeseries",
+      "targets": [
+        { "expr": "sum(increase(debate_agent_execution_retries_total[5m]))", "legendFormat": "Retries" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["debate-agent", "multi-ai"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Multi-AI Debate Agent",
+  "uid": "debate-agent-main",
+  "version": 1
+}

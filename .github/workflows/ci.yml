@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install ruff mypy
+      - name: Ruff check
+        run: ruff check backend/ agents/ debate/ memory/ execution/
+      - name: Ruff format check
+        run: ruff format --check backend/ agents/ debate/ memory/ execution/
+
+  test-backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: debate_agent_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/debate_agent_test
+      REDIS_URL: redis://localhost:6379/0
+      MIMO_API_KEY: test-key
+      DEEPSEEK_API_KEY: test-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run migrations
+        run: python scripts/migrate.py upgrade
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --cov=backend --cov=agents --cov=debate --cov=memory --cov=execution --cov-report=xml
+      - name: Upload coverage
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+
+  test-frontend:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        run: npm run build
+
+  build-docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t debate-agent-backend:ci .
+      - name: Build frontend image
+        run: docker build -t debate-agent-frontend:ci ./frontend
+      - name: Build sandbox images
+        run: |
+          docker build -t sandbox-python:ci ./docker/sandbox -f ./docker/sandbox/python.Dockerfile
+          docker build -t sandbox-node:ci ./docker/sandbox -f ./docker/sandbox/node.Dockerfile
