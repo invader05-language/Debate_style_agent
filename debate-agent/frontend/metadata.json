@@ -1,0 +1,6 @@
+{
+  "name": "AuraSynth",
+  "description": "Advanced multi-agent AI debate, independent thinking, and cognitive synthesis orchestration workbench.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

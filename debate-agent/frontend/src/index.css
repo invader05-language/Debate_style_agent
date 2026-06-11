@@ -1,0 +1,304 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #C2410C; /* Terracotta Orange-Red */
+  --color-secondary: #1A1A1A; /* Crisp Ink Charcoal */
+  --color-accent: #C2410C;
+  --color-surface: #F7F5F0; /* Clean Warm Ivory Paper */
+  --color-on-surface: #1A1A1A;
+  --color-on-surface-variant: #6E685D;
+  --color-secondary-container: #1A1A1A; /* Solid Dark highlights */
+
+  /* Override tailwind default colors with custom warm stone museum tones */
+  --color-gray-50: #F7F5F0;
+  --color-gray-100: #EAE8E0;
+  --color-gray-250: #D8D6CD;
+  --color-gray-200: #D8D6CD;
+  --color-gray-300: #C4C2B4;
+  --color-gray-400: #8E8B7F;
+  --color-gray-500: #747165;
+  --color-gray-600: #5E5B50;
+  --color-gray-750: #383731;
+  --color-gray-700: #383731;
+  --color-gray-800: #21201D;
+  --color-gray-900: #1A1A1A;
+
+  --font-serif: "Georgia", "Times New Roman", Times, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Fira Code", "JetBrains Mono", monospace;
+}
+
+/* Custom fade-in and scale-up animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Scrollbar styling utilities */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #8E8B7F;
+  border-radius: 0px;
+}
+
+/* -------------------------------------------------------------
+ * Artistic Flair Custom Structural Overrides
+ * ------------------------------------------------------------- */
+
+/* Body baseline */
+body, html {
+  background-color: #F7F5F0 !important;
+  color: #1A1A1A !important;
+  font-family: var(--font-sans) !important;
+}
+
+/* Crisp Sharp Geometry - Anti-Playfulness */
+.rounded-none, 
+.rounded-sm, 
+.rounded-md, 
+.rounded-lg, 
+.rounded-xl, 
+.rounded-2xl, 
+.rounded-3xl,
+[class*="rounded-"] {
+  border-radius: 0px !important;
+}
+
+/* Keep human avatars circular for functional clarity */
+.rounded-full, 
+[class*="rounded-full"] {
+  border-radius: 9999px !important;
+}
+
+/* Structural Borders & Solid Grids */
+.border, .border-b, .border-t, .border-l, .border-r {
+  border-color: #1A1A1A !important;
+}
+.border-gray-100, .border-gray-200, .border-indigo-150, .border-purple-100, .border-blue-100 {
+  border-color: #D8D6CD !important;
+}
+
+/* Editorial Serif Headings */
+h1, h2, h3, h4, h5, h6, 
+.font-headline-1, .font-headline-2,
+[class*="text-2xl"], [class*="text-3xl"], [class*="text-xl"], .text-lg {
+  font-family: var(--font-serif) !important;
+  font-style: italic !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* Uppercase wide labels mimicking Nouveaux typography */
+span.uppercase, 
+div.uppercase, 
+p.uppercase, 
+label.uppercase, 
+th.uppercase,
+.text-4xs, .text-3xs, .text-2xs {
+  letter-spacing: 0.18em !important;
+  font-weight: 700 !important;
+  font-family: var(--font-sans) !important;
+  font-style: normal !important;
+  font-size: 10px !important;
+}
+
+/* Brutalist Solid Drop Shadows */
+.shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl {
+  box-shadow: none !important;
+  border: 1px solid #1A1A1A !important;
+  box-shadow: 2.5px 2.5px 0px 0px rgba(26, 26, 26, 0.9) !important;
+}
+/* No shadow on relative overlay or interactive floating forms */
+.shadow-none {
+  box-shadow: none !important;
+}
+
+/* Layout Color Correction to Museum Sand */
+.bg-white {
+  background-color: #EAE8E0 !important;
+  color: #1A1A1A !important;
+}
+.bg-gray-50 {
+  background-color: #F7F5F0 !important;
+}
+.text-gray-900 {
+  color: #1A1A1A !important;
+}
+.text-gray-800, .text-gray-700, .text-gray-650 {
+  color: #2E2D27 !important;
+}
+.text-gray-500, .text-gray-400 {
+  color: #6E685D !important;
+}
+
+/* Button & Action overrides to pure solid blocks */
+.bg-primary, 
+.bg-secondary, 
+.bg-\[\#6b38d4\], 
+.bg-\[\#2170e4\], 
+.bg-blue-600, 
+.bg-purple-700,
+.bg-purple-900,
+.bg-indigo-900,
+button[class*="bg-blue-"], 
+button[class*="bg-purple-"] {
+  background-color: #1A1A1A !important;
+  color: #F7F5F0 !important;
+  border: 1px solid #1A1A1A !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.15em !important;
+  text-transform: uppercase !important;
+  font-size: 11px !important;
+  transition: all 0.15s ease-in-out !important;
+  border-radius: 0px !important;
+  box-shadow: none !important;
+}
+
+.bg-primary:hover, 
+.bg-secondary:hover, 
+.bg-\[\#6b38d4\]:hover, 
+.bg-\[\#2170e4\]:hover, 
+.bg-blue-600:hover, 
+.bg-purple-700:hover,
+button[class*="bg-blue-"]:hover, 
+button[class*="bg-purple-"]:hover {
+  background-color: #C2410C !important;
+  border-color: #C2410C !important;
+  color: #F7F5F0 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Ghost or white buttons */
+.bg-white.text-primary, 
+button.border-gray-200, 
+.border-gray-200 {
+  background-color: #F7F5F0 !important;
+  color: #1A1A1A !important;
+  border: 1px solid #1A1A1A !important;
+}
+.bg-white.text-primary:hover, 
+button.border-gray-200:hover {
+  background-color: #EAE8E0 !important;
+}
+
+/* Badges / Pill Tags style transformation to rigid geometric blocks */
+.rounded-full, 
+[class*="bg-green-"], 
+[class*="bg-blue-"], 
+[class*="bg-purple-"], 
+[class*="bg-amber-"], 
+[class*="bg-red-"] {
+  border-radius: 0px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  font-weight: 700 !important;
+  border: 1px solid #1A1A1A !important;
+}
+
+/* Watermark & Frame Elements */
+main::after {
+  content: "AuraSynth Digital Archive — Exhibition Series 2026";
+  font-style: normal;
+  position: fixed;
+  right: 32px;
+  bottom: 32px;
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: #1A1A1A;
+  opacity: 0.16;
+  pointer-events: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  z-index: 10;
+}
+
+/* Input Fields overrides */
+input, select, textarea {
+  background-color: #F7F5F0 !important;
+  border: 1px solid #1A1A1A !important;
+  color: #1A1A1A !important;
+  border-radius: 0px !important;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: #C2410C !important;
+  box-shadow: 2px 2px 0px 0px rgba(194, 65, 12, 0.4) !important;
+}
+
+/* Remove gradient overlays to ensure clean natural colors */
+[class*="bg-gradient-to-"] {
+  background-image: none !important;
+  background-color: #EAE8E0 !important;
+}
+
+/* Allow title text gradient to remain solid charcoal */
+.bg-gradient-to-r.from-primary.to-secondary {
+  background: none !important;
+  background-clip: unset !important;
+  -webkit-background-clip: unset !important;
+  color: #1A1A1A !important;
+}
+
+/* Dark theme simulator */
+.dark-theme-mode {
+  background-color: #151111 !important;
+  color: #F7F5F0 !important;
+}
+.dark-theme-mode .bg-white, 
+.dark-theme-mode .bg-gray-100, 
+.dark-theme-mode .bg-gray-50,
+.dark-theme-mode header,
+.dark-theme-mode aside {
+  background-color: #1F1919 !important;
+  border-color: #382D2D !important;
+}
+.dark-theme-mode h1, 
+.dark-theme-mode h2, 
+.dark-theme-mode h3, 
+.dark-theme-mode h4, 
+.dark-theme-mode h5, 
+.dark-theme-mode h6,
+.dark-theme-mode .text-gray-900 {
+  color: #F7F5F0 !important;
+}
+.dark-theme-mode p, 
+.dark-theme-mode span, 
+.dark-theme-mode select, 
+.dark-theme-mode input, 
+.dark-theme-mode textarea,
+.dark-theme-mode label {
+  color: #D2CFC4 !important;
+  background-color: #151111 !important;
+}
+.dark-theme-mode .bg-primary, 
+.dark-theme-mode .bg-secondary {
+  background-color: #1A1A1A !important;
+  color: #F7F5F0 !important;
+  border-color: #F7F5F0 !important;
+}
+.dark-theme-mode main::after {
+  color: #F7F5F0 !important;
+  opacity: 0.1 !important;
+}
+
